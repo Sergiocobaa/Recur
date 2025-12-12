@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 // 1. Importamos la utilidad para fuentes locales
 import localFont from "next/font/local";
 import "./globals.css";
+import { Toaster } from "@/components/ui/sonner";
 
 // 2. Configuramos la fuente Kaio
 const kaio = localFont({
@@ -40,6 +41,7 @@ export default function RootLayout({
       {/* 3. Añadimos la variable font-kaio y la clase font-sans */}
       <body className={`${kaio.variable} font-sans antialiased`} suppressHydrationWarning>
         {children}
+        <Toaster />
       </body>
     </html>
   );
