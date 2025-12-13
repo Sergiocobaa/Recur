@@ -102,6 +102,7 @@ export default function Dashboard() {
         price: parseFloat(formData.price),
         start_date: formData.date,
         category: formData.category,
+        next_payment_date: formData.date,
         user_id: user.id
       }
 
