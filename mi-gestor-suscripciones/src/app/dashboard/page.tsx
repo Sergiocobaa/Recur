@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Navbar } from "@/components/navbar"
 import { SubscriptionCard } from "@/components/subscription-card"
 import { Button } from "@/components/ui/button"
@@ -45,6 +46,8 @@ export default function Dashboard() {
   // 2. NUEVO ESTADO PARA EL MODO ANUAL
   const [isYearly, setIsYearly] = useState(false)
 
+  const router = useRouter()
+
   const [formData, setFormData] = useState({
     name: "",
     price: "",
@@ -53,8 +56,19 @@ export default function Dashboard() {
   })
 
   useEffect(() => {
-    fetchSubscriptions()
-  }, [])
+    const checkSessionAndFetch = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) {
+        router.push('/login');
+        return;
+      }
+
+      await fetchSubscriptions();
+    };
+
+    checkSessionAndFetch();
+  }, [router]);
 
   async function fetchSubscriptions() {
     try {

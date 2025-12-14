@@ -6,7 +6,8 @@ import { ArrowRight, CheckCircle2, CreditCard, ShieldCheck, Zap, LayoutDashboard
 import { supabase } from "@/lib/supabase"
 import { useEffect, useState } from "react"
 import { User } from "@supabase/supabase-js"
-
+import { DashboardPreview } from "@/components/dashboard-preview";
+import { LandingDashboard } from "@/components/landing-dashboard";
 export default function LandingPage() {
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
@@ -115,78 +116,58 @@ export default function LandingPage() {
                 </section>
 
                 {/* --- MOCKUP VISUAL (CSS Only) --- */}
-                <section className="w-full max-w-6xl px-4 sm:px-6 mb-24 relative">
-                    {/* Efecto de luz detrás */}
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-3xl h-64 bg-blue-600/20 blur-[100px] rounded-full -z-10"></div>
-
-                    {/* El Mockup */}
-                    <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-2 sm:p-4 shadow-2xl backdrop-blur-sm">
-                        <div className="rounded-lg border border-slate-200 bg-white overflow-hidden shadow-sm">
-                            {/* Header del Mockup */}
-                            <div className="border-b border-slate-100 bg-white p-4 flex items-center justify-between">
-                                <div className="flex space-x-2">
-                                    <div className="h-3 w-3 rounded-full bg-red-400"></div>
-                                    <div className="h-3 w-3 rounded-full bg-yellow-400"></div>
-                                    <div className="h-3 w-3 rounded-full bg-green-400"></div>
-                                </div>
-                                <div className="h-2 w-20 rounded-full bg-slate-100"></div>
-                            </div>
-                            {/* Cuerpo del Mockup */}
-                            <div className="p-6 sm:p-8 grid gap-6 md:grid-cols-3">
-                                {/* Sidebar falsa */}
-                                <div className="hidden md:block space-y-3">
-                                    <div className="h-8 w-full rounded-md bg-slate-100"></div>
-                                    <div className="h-8 w-3/4 rounded-md bg-slate-50"></div>
-                                    <div className="h-8 w-5/6 rounded-md bg-slate-50"></div>
-                                </div>
-                                {/* Contenido principal falso */}
-                                <div className="md:col-span-2 space-y-4">
-                                    <div className="flex justify-between items-center">
-                                        <div className="h-6 w-32 rounded-md bg-slate-200"></div>
-                                        <div className="h-8 w-8 rounded-full bg-blue-100"></div>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="h-24 rounded-xl bg-slate-50 border border-slate-100 p-4">
-                                            <div className="h-8 w-8 rounded-full bg-emerald-100 mb-2"></div>
-                                            <div className="h-4 w-12 rounded bg-slate-200"></div>
-                                        </div>
-                                        <div className="h-24 rounded-xl bg-slate-50 border border-slate-100 p-4">
-                                            <div className="h-8 w-8 rounded-full bg-blue-100 mb-2"></div>
-                                            <div className="h-4 w-12 rounded bg-slate-200"></div>
-                                        </div>
-                                    </div>
-                                    <div className="space-y-2 pt-2">
-                                        {[1, 2, 3].map((i) => (
-                                            <div key={i} className="flex items-center justify-between p-3 rounded-lg border border-slate-50 bg-white">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="h-8 w-8 rounded-md bg-slate-100"></div>
-                                                    <div className="h-3 w-24 rounded bg-slate-100"></div>
-                                                </div>
-                                                <div className="h-3 w-12 rounded bg-slate-100"></div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                <section className="w-full max-w-6xl px-4 sm:px-6 mb-24 md:mb-32">
+                    <div className="relative mx-auto transform-gpu transition-all duration-500 hover:scale-[1.01]">
+                        {/* 2. ÚSALO AQUÍ */}
+                        <LandingDashboard />
                     </div>
                 </section>
 
                 {/* --- LOGOS / BRANDS --- */}
-                <section className="w-full py-12 border-y border-slate-100 bg-slate-50/50">
+                <section className="w-full py-20 border-y border-slate-100 bg-slate-50/50">
                     <div className="container mx-auto px-6 text-center">
-                        <p className="text-sm font-semibold text-slate-500 mb-6 uppercase tracking-wider">Controla servicios como</p>
-                        <div className="flex flex-wrap justify-center gap-8 md:gap-16 opacity-50 grayscale hover:grayscale-0 transition-all duration-500">
-                            {/* Nombres de marcas simuladas con texto estilizado */}
-                            <span className="text-xl font-bold font-serif text-slate-800">Netflix</span>
-                            <span className="text-xl font-bold font-sans tracking-tighter text-slate-800">Spotify</span>
-                            <span className="text-xl font-bold font-mono text-slate-800">Adobe</span>
-                            <span className="text-xl font-black italic text-slate-800">Prime</span>
-                            <span className="text-xl font-semibold text-slate-800">ChatGPT</span>
+                        <p className="text-sm font-bold text-slate-400 mb-12 uppercase tracking-widest">
+                            Compatible con servicios como
+                        </p>
+
+                        {/* Aumentamos el 'gap' para dar más aire.
+                        */}
+                        <div className="flex flex-wrap items-center justify-center gap-12 md:gap-24 grayscale opacity-60 hover:grayscale-0 hover:opacity-100 transition-all duration-500">
+
+                            {/* Netflix */}
+                            <img
+                                src="https://images.icon-icons.com/2699/PNG/512/netflix_logo_icon_170919.png"
+                                alt="Netflix"
+                                /* AHORA MÁS GRANDE: h-12 en móvil, h-16 en escritorio */
+                                className="h-12 md:h-16 w-auto object-contain hover:scale-110 transition-transform duration-300"
+                            />
+
+                            {/* Amazon Prime */}
+                            <img
+                                src="https://img.icons8.com/color/600/amazon-prime.png"
+                                alt="Amazon Prime"
+                                /* MISMA ALTURA QUE LOS DEMÁS */
+                                className="h-12 md:h-16 w-auto object-contain hover:scale-110 transition-transform duration-300"
+                            />
+
+                            {/* ChatGPT / OpenAI */}
+                            <img
+                                src="https://cdn.iconscout.com/icon/free/png-256/free-chatgpt-icon-svg-download-png-7576880.png?f=webp"
+                                alt="ChatGPT"
+                                /* MISMA ALTURA QUE LOS DEMÁS */
+                                className="h-12 md:h-16 w-auto object-contain hover:scale-110 transition-transform duration-300"
+                            />
+
+                            {/* Adobe */}
+                            <img
+                                src="https://cdn-icons-png.flaticon.com/512/732/732171.png"
+                                alt="Adobe"
+                                /* MISMA ALTURA QUE LOS DEMÁS */
+                                className="h-12 md:h-16 w-auto object-contain hover:scale-110 transition-transform duration-300"
+                            />
                         </div>
                     </div>
                 </section>
-
                 {/* --- FEATURES GRID --- */}
                 <section className="w-full max-w-6xl px-4 sm:px-6 py-24">
                     <div className="mb-16 text-center max-w-3xl mx-auto">
