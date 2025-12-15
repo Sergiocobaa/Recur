@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
 
-// --- HELPERS DE FECHAS (Sin instalar nada) ---
+// --- HELPERS DE FECHAS ---
 const toISODateString = (date: Date) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -27,7 +27,7 @@ const getStartOfMonthStr = (date: Date) => {
 const getEndOfMonthStr = (date: Date) => {
   return toISODateString(new Date(date.getFullYear(), date.getMonth() + 1, 0));
 };
-// ----------------------------------------------
+// -------------------------
 
 // --- TIPOS ---
 type Subscription = {
@@ -92,22 +92,38 @@ export default function Dashboard() {
   const fetchData = async (userId: string, date: Date) => {
     setLoading(true);
     try {
-        // A. Cargar Perfil
-        const { data: profile } = await supabase.from('profiles').select('income, savings_goal').eq('id', userId).single();
-        if (profile) {
-            setIncome(profile.income || 0);
-            setSavingsGoal(profile.savings_goal || 0);
-            setIncomeForm({ income: profile.income?.toString(), savings_goal: profile.savings_goal?.toString() });
+        const startStr = getStartOfMonthStr(date);
+        const endStr = getEndOfMonthStr(date);
+
+        // A. Cargar INGRESOS/AHORRO del mes específico
+        // Primero buscamos si existe un presupuesto específico para ESTE mes
+        const { data: monthBudget } = await supabase
+          .from('monthly_budgets')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('date', startStr) // Buscamos por el día 1 del mes
+          .single();
+
+        if (monthBudget) {
+            // Si existe, usamos los datos de ese mes
+            setIncome(monthBudget.income);
+            setSavingsGoal(monthBudget.savings_goal);
+            setIncomeForm({ income: monthBudget.income.toString(), savings_goal: monthBudget.savings_goal.toString() });
+        } else {
+            // Si NO existe, cargamos el perfil por defecto
+            const { data: profile } = await supabase.from('profiles').select('income, savings_goal').eq('id', userId).single();
+            if (profile) {
+                setIncome(profile.income || 0);
+                setSavingsGoal(profile.savings_goal || 0);
+                setIncomeForm({ income: profile.income?.toString(), savings_goal: profile.savings_goal?.toString() });
+            }
         }
 
         // B. Cargar Suscripciones Activas
         const { data: subs } = await supabase.from('subscriptions').select('*').eq('user_id', userId).eq('active', true).order('price', { ascending: false });
         if (subs) setSubscriptions(subs as Subscription[]);
 
-        // C. LOGICA DE MESES
-        const startStr = getStartOfMonthStr(date);
-        const endStr = getEndOfMonthStr(date);
-
+        // C. Cargar Gastos (Fijos generados + Variables)
         const { data: monthExpenses } = await supabase
             .from('expenses')
             .select('*')
@@ -116,7 +132,7 @@ export default function Dashboard() {
             .lte('date', endStr)
             .order('date', { ascending: false });
 
-        // D. GENERACIÓN PEREZOSA
+        // D. GENERACIÓN PEREZOSA (Si faltan los fijos, los creamos)
         if ((!monthExpenses || monthExpenses.length === 0) && subs && subs.length > 0) {
              const newExpenses = subs.map(sub => ({
                 user_id: userId,
@@ -142,7 +158,6 @@ export default function Dashboard() {
 
   // --- ACTIONS ---
 
-  // ESTA ES LA FUNCIÓN QUE FALTABA
   const openSubModal = (sub?: Subscription) => {
       if (sub) {
           setEditingId(sub.id);
@@ -206,15 +221,45 @@ export default function Dashboard() {
       fetchData(user.id, currentDate);
   };
 
+  // NUEVO: ACTUALIZAR PERFIL (Guarda en el MES y en el DEFAULT)
   const handleUpdateProfile = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!user) return;
-      await supabase.from('profiles').update({
-           income: parseFloat(incomeForm.income),
-           savings_goal: parseFloat(incomeForm.savings_goal)
-      }).eq('id', user.id);
-      fetchData(user.id, currentDate);
-      setIsIncomeModalOpen(false);
+
+      const newIncome = parseFloat(incomeForm.income);
+      const newGoal = parseFloat(incomeForm.savings_goal);
+      const startStr = getStartOfMonthStr(currentDate);
+
+      try {
+        // 1. Guardar/Actualizar en la tabla de presupuestos MENSUALES (upsert)
+        const { error: budgetError } = await supabase
+            .from('monthly_budgets')
+            .upsert({ 
+                user_id: user.id, 
+                date: startStr, // Clave única compuesta (user + fecha)
+                income: newIncome, 
+                savings_goal: newGoal 
+            }, { onConflict: 'user_id, date' });
+
+        if (budgetError) throw budgetError;
+
+        // 2. Actualizar también el perfil DEFAULT (para que los meses futuros usen este nuevo valor)
+        // Esto es opcional, pero útil: si me suben el sueldo hoy, será mi sueldo el mes que viene.
+        await supabase.from('profiles').update({
+            income: newIncome,
+            savings_goal: newGoal
+        }).eq('id', user.id);
+
+        setIncome(newIncome);
+        setSavingsGoal(newGoal);
+        setIsIncomeModalOpen(false);
+        
+        // Recargar para confirmar
+        fetchData(user.id, currentDate);
+
+      } catch (error: any) {
+        alert("Error al guardar: " + error.message);
+      }
   };
 
   // --- CÁLCULOS GLOBALES ---
@@ -285,7 +330,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
                 <div className="flex justify-between mb-4"><div className="bg-emerald-100 p-2 rounded-lg text-emerald-600"><ArrowUpRight className="h-5 w-5" /></div></div>
-                <p className="text-slate-500 text-sm font-medium">Ingresos Mes</p>
+                <p className="text-slate-500 text-sm font-medium">Ingresos {new Intl.DateTimeFormat('es-ES', { month: 'long' }).format(currentDate)}</p>
                 <h3 className="text-2xl font-black text-slate-900">{income}€</h3>
             </div>
             <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
@@ -445,13 +490,14 @@ export default function Dashboard() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
            <div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl">
                <div className="flex justify-between mb-4">
-                   <h3 className="font-bold text-lg">Ajustar Perfil Financiero</h3>
+                   <h3 className="font-bold text-lg">Ajustar Perfil ({new Intl.DateTimeFormat('es-ES', { month: 'long' }).format(currentDate)})</h3>
                    <button onClick={() => setIsIncomeModalOpen(false)}><X className="h-5 w-5 text-slate-400"/></button>
                </div>
                <form onSubmit={handleUpdateProfile} className="space-y-4">
                    <div>
                        <label className="text-sm font-medium text-slate-700">Ingresos Mensuales (€)</label>
                        <input required type="number" value={incomeForm.income} onChange={e => setIncomeForm({...incomeForm, income: e.target.value})} className="w-full p-2 border rounded-lg mt-1"/>
+                       <p className="text-xs text-slate-400 mt-1">Este cambio se aplicará a este mes y futuros.</p>
                    </div>
                    <div>
                        <label className="text-sm font-medium text-slate-700">Objetivo de Ahorro (€)</label>
