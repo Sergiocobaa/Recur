@@ -190,6 +190,20 @@ export default function Dashboard() {
   const totalExpenses = totalSubs + totalVarExpenses;
   const remaining = income - totalExpenses - savingsGoal;
 
+  const percentageLeft = income > 0 ? (remaining / income) * 100 : 0;
+  const validPercentage = Math.min(Math.max(percentageLeft, 0), 100);
+
+  let barColor = "bg-emerald-400";
+  let statusMessage = "Vas genial este mes 🚀";
+
+  if (validPercentage < 20) {
+      barColor = "bg-red-500"; // Rojo
+      statusMessage = "Presupuesto crítico 🚨";
+  } else if (validPercentage < 50) {
+      barColor = "bg-yellow-400"; // Amarillo
+      statusMessage = "Controla los gastos 👀";
+  }
+
   const chartData = subscriptions.map(s => ({ name: s.category, value: s.price })).reduce((acc: any[], curr) => {
       const existing = acc.find(i => i.name === curr.name);
       if (existing) existing.value += curr.value;
@@ -254,12 +268,39 @@ export default function Dashboard() {
                 <p className="text-slate-500 text-sm font-medium">Meta Ahorro</p>
                 <h3 className="text-2xl font-black text-slate-900">{savingsGoal}€</h3>
             </div>
-            <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl text-white relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-32 bg-blue-500 rounded-full mix-blend-overlay filter blur-3xl opacity-20 -translate-y-1/2 translate-x-1/2"></div>
+            <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl text-white relative overflow-hidden group">
+                {/* Efecto de luz de fondo dinámico según el estado */}
+                <div className={`absolute top-0 right-0 p-32 rounded-full mix-blend-overlay filter blur-3xl opacity-20 -translate-y-1/2 translate-x-1/2 transition-colors duration-500 ${validPercentage < 20 ? 'bg-red-500' : 'bg-blue-500'}`}></div>
+                
                 <div className="relative z-10">
-                    <div className="flex justify-between mb-4"><div className="bg-white/10 p-2 rounded-lg"><Wallet className="h-5 w-5" /></div></div>
+                    <div className="flex justify-between mb-4">
+                        <div className="bg-white/10 p-2 rounded-lg">
+                            <Wallet className="h-5 w-5" />
+                        </div>
+                        {/* Porcentaje numérico pequeño */}
+                        <span className={`text-xs font-bold px-2 py-1 rounded-full ${validPercentage < 20 ? 'bg-red-500/20 text-red-300' : 'bg-emerald-500/20 text-emerald-300'}`}>
+                            {validPercentage.toFixed(0)}% restante
+                        </span>
+                    </div>
+                    
                     <p className="text-slate-400 text-sm font-medium">Libre para gastar</p>
                     <h3 className="text-3xl font-black tracking-tight mt-1">{remaining.toFixed(2)}€</h3>
+                    
+                    {/* --- AQUÍ ESTÁ LA BARRA --- */}
+                    <div className="mt-5 space-y-2">
+                        {/* La barra gris de fondo */}
+                        <div className="w-full bg-slate-700 h-2 rounded-full overflow-hidden">
+                            {/* La barra de color que se mueve */}
+                            <div 
+                                className={`h-full rounded-full transition-all duration-1000 ease-out ${barColor}`} 
+                                style={{ width: `${validPercentage}%` }}
+                            ></div>
+                        </div>
+                        {/* El mensaje motivacional */}
+                        <p className="text-xs text-slate-400 font-medium text-right">
+                            {statusMessage}
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>
