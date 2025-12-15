@@ -1,341 +1,235 @@
 "use client";
 
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import { Navbar } from "@/components/navbar"
-import { SubscriptionCard } from "@/components/subscription-card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Plus, Loader2, Save, Wallet } from "lucide-react" // Asegúrate de tener Wallet
-import { supabase } from "@/lib/supabase"
-import { toast } from "sonner"
-import { CategoryChart } from "@/components/category-chart"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-// 1. IMPORTAR EL SWITCH Y EL LABEL
-import { Switch } from "@/components/ui/switch"
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+import { Plus, Wallet, TrendingDown, PiggyBank, Target, ArrowUpRight, ArrowDownRight, MoreHorizontal } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 
-interface Subscription {
-  id: string
-  name: string
-  price: number
-  category: string
-  start_date: string
-}
+// Tipos
+type Subscription = {
+  id: string;
+  name: string;
+  price: number;
+  date: string; // Fecha de renovación (ej: "2024-12-15")
+  category: string;
+};
+
+// Colores para el gráfico (Estilo Notion/Moderno)
+const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8"];
 
 export default function Dashboard() {
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>([])
-  const [loading, setLoading] = useState(true)
-  const [isOpen, setIsOpen] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [editingId, setEditingId] = useState<string | null>(null)
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [income, setIncome] = useState(2000); // Esto debería venir de la DB, por ahora hardcodeado simulando tu Excel
+  const [savingsGoal, setSavingsGoal] = useState(300); // Objetivo de ahorro mensual
 
-  // 2. NUEVO ESTADO PARA EL MODO ANUAL
-  const [isYearly, setIsYearly] = useState(false)
-
-  const router = useRouter()
-
-  const [formData, setFormData] = useState({
-    name: "",
-    price: "",
-    date: "",
-    category: "Entretenimiento"
-  })
-
+  // Carga de datos
   useEffect(() => {
-    const checkSessionAndFetch = async () => {
+    const checkUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-
       if (!user) {
-        router.push('/login');
+        router.push("/login");
         return;
       }
-
-      await fetchSubscriptions();
+      fetchSubscriptions(user.id);
     };
-
-    checkSessionAndFetch();
+    checkUser();
   }, [router]);
 
-  async function fetchSubscriptions() {
-    try {
-      const { data, error } = await supabase.from('subscriptions').select('*').order('created_at', { ascending: false })
-      if (error) throw error
-      setSubscriptions(data || [])
-    } catch (error) {
-      console.error(error)
-      toast.error("Error cargando datos")
-    } finally {
-      setLoading(false)
-    }
-  }
+  const fetchSubscriptions = async (userId: string) => {
+    // Aquí iría tu llamada real a Supabase
+    // Simulamos datos para que veas el diseño YA:
+    const mockData = [
+      { id: "1", name: "Netflix", price: 17.99, date: "2024-12-15", category: "Entretenimiento" },
+      { id: "2", name: "Spotify", price: 12.99, date: "2024-12-20", category: "Música" },
+      { id: "3", name: "Gimnasio", price: 34.90, date: "2024-12-01", category: "Salud" },
+      { id: "4", name: "Adobe", price: 60.49, date: "2024-12-28", category: "Software" },
+      { id: "5", name: "Amazon Prime", price: 4.99, date: "2024-12-10", category: "Compras" },
+    ];
+    setSubscriptions(mockData);
+    setLoading(false);
+  };
 
-  const openCreateModal = () => {
-    setEditingId(null);
-    setFormData({ name: "", price: "", date: "", category: "Entretenimiento" });
-    setIsOpen(true);
-  }
-
-  const openEditModal = (sub: Subscription) => {
-    setEditingId(sub.id);
-    setFormData({
-      name: sub.name,
-      price: sub.price.toString(),
-      date: sub.start_date,
-      category: sub.category
-    });
-    setIsOpen(true);
-  }
-
-  async function handleSave() {
-    if (!formData.name || !formData.price || !formData.date) {
-      toast.warning("Rellena todos los campos")
-      return
-    }
-
-    setSaving(true)
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error("No logueado")
-
-      const payload = {
-        name: formData.name,
-        price: parseFloat(formData.price),
-        start_date: formData.date,
-        next_payment_date: formData.date,
-        category: formData.category,
-        user_id: user.id
-      }
-
-      let error;
-
-      if (editingId) {
-        const response = await supabase.from('subscriptions').update(payload).eq('id', editingId);
-        error = response.error;
-      } else {
-        const response = await supabase.from('subscriptions').insert([payload]);
-        error = response.error;
-      }
-
-      if (error) throw error
-
-      toast.success(editingId ? "¡Suscripción actualizada!" : "¡Suscripción añadida!")
-      setIsOpen(false)
-      fetchSubscriptions()
-    } catch (error) {
-      console.error(error)
-      toast.error("Error al guardar")
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  async function handleDelete(id: string) {
-    if (!confirm("¿Seguro que quieres borrar esta suscripción?")) return;
-    const { error } = await supabase.from('subscriptions').delete().eq('id', id);
-    if (error) {
-      toast.error("Error al borrar");
+  // --- CÁLCULOS TIPO EXCEL ---
+  const totalExpenses = subscriptions.reduce((acc, sub) => acc + sub.price, 0);
+  const remaining = income - totalExpenses - savingsGoal; // "Queda para gastar" del Excel
+  const savingsProgress = (savingsGoal / income) * 100;
+  
+  // Datos para el gráfico circular (Por categoría)
+  const categoryData = subscriptions.reduce((acc: any[], sub) => {
+    const existing = acc.find(item => item.name === sub.category);
+    if (existing) {
+      existing.value += sub.price;
     } else {
-      toast.success("Eliminada correctamente");
-      setSubscriptions(prev => prev.filter(sub => sub.id !== id));
+      acc.push({ name: sub.category, value: sub.price });
     }
-  }
+    return acc;
+  }, []);
 
-  // CÁLCULO INTELIGENTE
-  const totalMonthly = subscriptions.reduce((acc, sub) => acc + sub.price, 0)
-  // Si está en modo anual, multiplicamos por 12
-  const displayTotal = isYearly ? totalMonthly * 12 : totalMonthly
+  if (loading) return <div className="flex h-screen items-center justify-center text-slate-400">Cargando tus finanzas...</div>;
 
   return (
-    <div className="min-h-screen w-full bg-grid-pattern relative selection:bg-blue-100">
-      <div className="fixed inset-0 bg-blue-glow z-0"></div>
-
-      <div className="relative z-10">
-        <Navbar />
-
-        <main className="container mx-auto px-4 py-8 md:py-12 max-w-5xl">
-
-          {/* CABECERA CON INTERRUPTOR */}
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
-            {/* 3. INTERRUPTOR (SWITCH) */}
-            <div className="flex items-center space-x-2 bg-white/50 backdrop-blur-sm p-2 rounded-lg border border-slate-200">
-              <Switch
-                id="mode-toggle"
-                checked={isYearly}
-                onCheckedChange={setIsYearly}
-              />
-              <Label htmlFor="mode-toggle" className="cursor-pointer font-medium text-slate-700">
-                {isYearly ? "Pago Anual (x12)" : "Pago Mensual"}
-              </Label>
-            </div>
+    <div className="min-h-screen bg-slate-50/50 p-6 md:p-10 font-sans">
+      <div className="max-w-7xl mx-auto space-y-8">
+        
+        {/* HEADER */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Panel Principal</h1>
+            <p className="text-slate-500">Resumen financiero de Octubre</p>
           </div>
+          <div className="flex gap-3">
+             <Button variant="outline" className="bg-white text-slate-700 border-slate-200">
+                <Target className="mr-2 h-4 w-4" /> Ajustar Objetivos
+             </Button>
+             <Button className="bg-slate-900 text-white hover:bg-slate-800 shadow-lg shadow-slate-900/20">
+                <Plus className="mr-2 h-4 w-4" /> Nuevo Gasto
+             </Button>
+          </div>
+        </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12 items-start">
-
-            <div className="md:col-span-2 space-y-8">
-              <div className="space-y-2 text-center md:text-left">
-                <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl md:text-5xl">
-                  Tus Gastos
-                </h1>
-                <p className="text-base sm:text-lg text-slate-500">
-                  Gestiona y controla tus pagos recurrentes.
-                </p>
-              </div>
-
-              <div className="bg-slate-900 rounded-2xl p-6 text-white shadow-xl shadow-slate-900/20 transform transition-all hover:scale-[1.01]">
-                <div className="flex justify-between items-start">
-                  <div>
-                    {/* CAMBIAMOS EL TEXTO SEGÚN EL MODO */}
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                      {isYearly ? "Total Anual Estimado" : "Total Mensual"}
-                    </span>
-                    <div className="text-4xl sm:text-6xl font-black tracking-tighter mt-2 transition-all duration-300">
-                      {displayTotal.toFixed(2)}€
+        {/* --- NIVEL 1: LAS MÉTRICAS CLAVE (KPIs) --- */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {/* Card 1: Ingresos (Input manual en el futuro) */}
+            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex justify-between items-start mb-4">
+                    <div className="bg-emerald-100 p-2 rounded-lg text-emerald-600">
+                        <ArrowUpRight className="h-5 w-5" />
                     </div>
-                  </div>
-                  <div className="bg-white/10 p-3 rounded-xl backdrop-blur-sm">
-                    <Wallet className="h-6 w-6 text-emerald-400" />
-                  </div>
+                    <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">+2% vs mes pasado</span>
                 </div>
-                <div className="mt-4 flex gap-2">
-                  <div className="text-sm font-medium text-emerald-300 bg-emerald-500/20 px-3 py-1 rounded-full">
-                    {subscriptions.length} suscripciones activas
-                  </div>
-                </div>
-              </div>
+                <p className="text-slate-500 text-sm font-medium">Ingresos Totales</p>
+                <h3 className="text-2xl font-black text-slate-900">{income.toFixed(2)}€</h3>
             </div>
 
-            {/* Pasamos los datos modificados al gráfico si quisiéramos, pero el gráfico muestra porcentajes así que da igual */}
-            <CategoryChart subscriptions={subscriptions} />
-
-          </div>
-
-          {/* ... BARRA DE ACCIONES ... */}
-          <div className="flex flex-col sm:flex-row items-center justify-between mb-8 pb-4 gap-4">
-            <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2 self-start sm:self-auto">
-              Mis Suscripciones
-            </h2>
-
-            <Dialog open={isOpen} onOpenChange={setIsOpen}>
-              <DialogTrigger asChild>
-                <Button onClick={openCreateModal} className="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white shadow-lg h-12 sm:h-10 text-base sm:text-sm">
-                  <Plus className="mr-2 h-5 w-5 sm:h-4 sm:w-4" /> Nueva Suscripción
-                </Button>
-              </DialogTrigger>
-              {/* ... CONTENIDO DEL MODAL (IGUAL QUE ANTES) ... */}
-              <DialogContent className="w-[95%] sm:max-w-[425px] bg-white rounded-xl">
-                <DialogHeader>
-                  <DialogTitle>{editingId ? "Editar suscripción" : "Añadir servicio"}</DialogTitle>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="name">Nombre</Label>
-                    <Input
-                      id="name"
-                      placeholder="Ej: Netflix"
-                      className="h-11 sm:h-10"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="price">Precio Mensual (€)</Label>
-                      <Input
-                        id="price"
-                        type="number"
-                        placeholder="0.00"
-                        className="h-11 sm:h-10"
-                        value={formData.price}
-                        onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                      />
+            {/* Card 2: Gastos Fijos (Suscripciones) */}
+            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex justify-between items-start mb-4">
+                    <div className="bg-red-100 p-2 rounded-lg text-red-600">
+                        <ArrowDownRight className="h-5 w-5" />
                     </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="date">Día cobro</Label>
-                      <Input
-                        id="date"
-                        type="date"
-                        className="h-11 sm:h-10"
-                        value={formData.date}
-                        onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>Categoría</Label>
-                    <Select
-                      onValueChange={(val) => setFormData({ ...formData, category: val })}
-                      value={formData.category}
-                    >
-                      <SelectTrigger className="h-11 sm:h-10">
-                        <SelectValue placeholder="Selecciona" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Entretenimiento">Entretenimiento</SelectItem>
-                        <SelectItem value="Música">Música</SelectItem>
-                        <SelectItem value="Software">Software / IA</SelectItem>
-                        <SelectItem value="Hogar">Hogar / Compras</SelectItem>
-                        <SelectItem value="Otros">Otros</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
                 </div>
-                <div className="flex justify-end">
-                  <Button onClick={handleSave} disabled={saving} className="bg-slate-900 text-white w-full sm:w-auto h-12 sm:h-10">
-                    {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                    {editingId ? "Actualizar" : "Guardar"}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </div>
-
-          {loading ? (
-            <div className="text-center py-20 text-slate-400">Cargando...</div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {subscriptions.map((sub) => (
-                <SubscriptionCard
-                  key={sub.id}
-                  id={sub.id}
-                  name={sub.name}
-                  period={isYearly ? "año" : "mes"}
-                  // 4. AQUÍ LA MAGIA: Multiplicamos el precio en la tarjeta si es modo anual
-                  price={isYearly ? (sub.price * 12).toFixed(2) : sub.price.toFixed(2)}
-                  date={new Date(sub.start_date).toLocaleDateString()}
-                  category={sub.category}
-                  onEdit={() => openEditModal(sub)}
-                  onDelete={() => handleDelete(sub.id)}
-                />
-              ))}
-
-              <div
-                onClick={openCreateModal}
-                className="flex flex-col items-center justify-center border border-dashed border-slate-300 rounded-xl p-6 h-full min-h-[140px] sm:min-h-[180px] text-slate-400 hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50/30 transition-all duration-200 group cursor-pointer bg-white/50"
-              >
-                <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-slate-100 group-hover:bg-blue-100 flex items-center justify-center mb-3 transition-colors">
-                  <Plus className="h-5 w-5 sm:h-6 sm:w-6 text-slate-400 group-hover:text-blue-600" />
-                </div>
-                <span className="font-medium text-sm">Añadir servicio</span>
-              </div>
+                <p className="text-slate-500 text-sm font-medium">Gastos Fijos</p>
+                <h3 className="text-2xl font-black text-slate-900">{totalExpenses.toFixed(2)}€</h3>
+                <p className="text-xs text-slate-400 mt-1">{subscriptions.length} servicios activos</p>
             </div>
-          )}
 
-        </main>
+             {/* Card 3: Objetivo Ahorro (Simulando "Ahorros" del Excel) */}
+             <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex justify-between items-start mb-4">
+                    <div className="bg-blue-100 p-2 rounded-lg text-blue-600">
+                        <PiggyBank className="h-5 w-5" />
+                    </div>
+                    <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-full">{savingsProgress.toFixed(0)}% del ingreso</span>
+                </div>
+                <p className="text-slate-500 text-sm font-medium">Objetivo Ahorro</p>
+                <h3 className="text-2xl font-black text-slate-900">{savingsGoal.toFixed(2)}€</h3>
+            </div>
+
+            {/* Card 4: "QUEDA PARA GASTAR" (La joya del Excel) */}
+            <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl shadow-slate-900/10 text-white relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-32 bg-blue-500 rounded-full mix-blend-overlay filter blur-3xl opacity-20 -translate-y-1/2 translate-x-1/2 group-hover:opacity-40 transition-opacity"></div>
+                <div className="flex justify-between items-start mb-4 relative z-10">
+                    <div className="bg-white/10 p-2 rounded-lg text-white">
+                        <Wallet className="h-5 w-5" />
+                    </div>
+                </div>
+                <div className="relative z-10">
+                    <p className="text-slate-400 text-sm font-medium">Disponible para caprichos</p>
+                    <h3 className="text-3xl font-black tracking-tight mt-1">{remaining.toFixed(2)}€</h3>
+                    <div className="w-full bg-slate-700 h-1.5 rounded-full mt-4 overflow-hidden">
+                        <div className="bg-emerald-400 h-full rounded-full" style={{ width: '65%' }}></div>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-2">Vas bien este mes 👍</p>
+                </div>
+            </div>
+        </div>
+
+        {/* --- NIVEL 2: VISUALIZACIÓN DE DATOS (GRÁFICOS) --- */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            
+            {/* Gráfico 1: Desglose (Tu Pie Chart del Excel pero moderno) */}
+            <div className="md:col-span-1 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                <h4 className="font-bold text-slate-800 mb-6">¿Dónde se va el dinero?</h4>
+                <div className="h-64 w-full relative">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                            <Pie
+                                data={categoryData}
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={60}
+                                outerRadius={80}
+                                paddingAngle={5}
+                                dataKey="value"
+                            >
+                                {categoryData.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                ))}
+                            </Pie>
+                            <RechartsTooltip />
+                        </PieChart>
+                    </ResponsiveContainer>
+                    {/* Texto central del Donut */}
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
+                        <span className="text-2xl font-bold text-slate-900">{totalExpenses.toFixed(0)}€</span>
+                        <p className="text-xs text-slate-400">Total Fijo</p>
+                    </div>
+                </div>
+                {/* Leyenda */}
+                <div className="flex flex-wrap gap-2 justify-center mt-4">
+                    {categoryData.map((entry, index) => (
+                        <div key={index} className="flex items-center gap-1 text-xs text-slate-500">
+                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></span>
+                            {entry.name}
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* Gráfico 2: Próximos Pagos (Lista mejorada) */}
+            <div className="md:col-span-2 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col">
+                <div className="flex justify-between items-center mb-6">
+                    <h4 className="font-bold text-slate-800">Próximos Cobros</h4>
+                    <Button variant="ghost" size="sm" className="text-slate-400">Ver todo</Button>
+                </div>
+
+                <div className="space-y-4 flex-1 overflow-auto">
+                    {subscriptions.map((sub) => (
+                        <div key={sub.id} className="flex items-center justify-between p-4 hover:bg-slate-50 rounded-2xl transition-colors group border border-transparent hover:border-slate-100">
+                            <div className="flex items-center gap-4">
+                                {/* Icono o inicial */}
+                                <div className="h-10 w-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600 font-bold group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors">
+                                    {sub.name.charAt(0)}
+                                </div>
+                                <div>
+                                    <p className="font-bold text-slate-900">{sub.name}</p>
+                                    <p className="text-xs text-slate-500">{sub.category} • Renueva el {sub.date}</p>
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <p className="font-bold text-slate-900">-{sub.price}€</p>
+                                <p className="text-xs text-slate-400">Mensual</p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+
+        {/* --- NIVEL 3: DETALLE TIPO EXCEL (Para el futuro) --- */}
+        {/* Aquí podríamos añadir las tablas de deudas o ingresos extra que tenías en el Excel */}
+        <div className="bg-blue-50/50 border border-blue-100 rounded-2xl p-6 text-center">
+            <p className="text-blue-800 font-medium mb-2">🚀 Próximamente: Conexión Bancaria</p>
+            <p className="text-blue-600/80 text-sm max-w-lg mx-auto">
+                Pronto podrás conectar tu banco para que "Gasolina", "Cenas" y "Regalos" se rellenen solos, igual que en tu Excel pero automático.
+            </p>
+        </div>
+
       </div>
     </div>
-  )
+  );
 }
