@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { MonthSelector } from "@/components/month-selector";
 import { 
   Plus, Wallet, PiggyBank, Target, ArrowUpRight, ArrowDownRight, 
-  Trash2, X, LogOut, ShoppingBag, Pencil
+  Trash2, X, LogOut, ShoppingBag, Pencil, LayoutDashboard
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
@@ -322,6 +322,11 @@ export default function Dashboard() {
                  <Button onClick={() => openSubModal()} className="bg-slate-900 text-white">
                     <Plus className="mr-2 h-4 w-4" /> Suscripción
                  </Button>
+                 <Link href="/analytics">
+                <Button variant="outline" className="bg-white text-slate-600 border-slate-200 hover:bg-slate-50">
+                    <LayoutDashboard className="mr-2 h-4 w-4" /> Analíticas
+                </Button>
+                </Link>
               </div>
           </div>
         </div>
