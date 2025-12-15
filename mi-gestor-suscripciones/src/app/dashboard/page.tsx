@@ -7,12 +7,12 @@ import { Plus, Wallet, PiggyBank, Target, ArrowUpRight, ArrowDownRight, Trash2, 
 import { Button } from "@/components/ui/button";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
 
-// Tipos adaptados a TU tabla real
+// Tipos
 type Subscription = {
   id: string;
   name: string;
   price: number;
-  start_date: string; // Antes era 'date', ahora es 'start_date'
+  start_date: string;
   category: string;
   currency: string;
   frequency: string;
@@ -30,7 +30,7 @@ export default function Dashboard() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newSub, setNewSub] = useState({ name: "", price: "", date: "", category: "Entretenimiento" });
 
-  // Datos económicos (Cargados desde 'profiles')
+  // Datos económicos
   const [income, setIncome] = useState(0); 
   const [savingsGoal, setSavingsGoal] = useState(0);
 
@@ -50,17 +50,17 @@ export default function Dashboard() {
 
   const fetchData = async (userId: string) => {
     try {
-        // A. Cargar Suscripciones (Solo las activas)
+        // A. Cargar Suscripciones
         const { data: subsData } = await supabase
             .from('subscriptions')
             .select('*')
             .eq('user_id', userId)
-            .eq('active', true) // Solo traemos las activas
+            .eq('active', true)
             .order('price', { ascending: false });
 
-        if (subsData) setSubscriptions(subsData);
+        if (subsData) setSubscriptions(subsData as Subscription[]);
 
-        // B. Cargar Perfil (Ingresos y Objetivo)
+        // B. Cargar Perfil
         const { data: profileData } = await supabase
             .from('profiles')
             .select('income, savings_goal')
@@ -72,14 +72,14 @@ export default function Dashboard() {
             setSavingsGoal(profileData.savings_goal || 0);
         }
 
-    } catch (error) {
+    } catch (error: any) { // <--- CORRECCIÓN AQUÍ
         console.error("Error cargando:", error);
     } finally {
         setLoading(false);
     }
   };
 
-  // 2. CREAR SUSCRIPCIÓN (Adaptado a tus columnas)
+  // 2. CREAR SUSCRIPCIÓN
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -90,13 +90,12 @@ export default function Dashboard() {
                 user_id: user.id,
                 name: newSub.name,
                 price: parseFloat(newSub.price),
-                start_date: newSub.date, // Mapeamos tu input date a 'start_date'
+                start_date: newSub.date,
                 category: newSub.category,
-                // Rellenamos los campos obligatorios de tu tabla
                 currency: 'EUR',
                 frequency: 'monthly',
                 active: true,
-                next_payment_date: newSub.date // Asumimos que el primer pago es esa fecha
+                next_payment_date: newSub.date
             }
         ]);
         if (error) throw error;
@@ -104,16 +103,15 @@ export default function Dashboard() {
         await fetchData(user.id);
         setIsModalOpen(false);
         setNewSub({ name: "", price: "", date: "", category: "Entretenimiento" }); 
-    } catch (error) {
-        alert("Error al crear: " + error.message);
+    } catch (error: any) { // <--- CORRECCIÓN CLAVE AQUÍ
+        alert("Error al crear: " + (error.message || "Error desconocido"));
     }
   };
 
-  // 3. BORRAR (Soft Delete: Poner active = false)
+  // 3. BORRAR
   const handleDelete = async (id: string) => {
       if (!confirm("¿Seguro que quieres borrar esta suscripción?")) return;
       try {
-          // En vez de borrar la fila, la desactivamos para no perder el histórico
           const { error } = await supabase
             .from('subscriptions')
             .update({ active: false }) 
@@ -121,7 +119,7 @@ export default function Dashboard() {
             
           if (error) throw error;
           setSubscriptions(prev => prev.filter(sub => sub.id !== id));
-      } catch (error) {
+      } catch (error: any) { // <--- CORRECCIÓN AQUÍ TAMBIÉN
           console.error("Error borrando:", error);
       }
   };
@@ -142,7 +140,7 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-slate-50/50 p-4 md:p-10 font-sans relative">
       
-      {/* MODAL (Igual que antes pero usa la función nueva) */}
+      {/* MODAL */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
