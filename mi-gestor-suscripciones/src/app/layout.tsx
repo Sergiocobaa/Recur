@@ -78,7 +78,7 @@ export default function RootLayout({
       <body className={`${kaio.variable} font-sans antialiased overscroll-none`} suppressHydrationWarning>
         {/* Google Tag Manager (noscript) */}
         <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-WV9923SX"
-        height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+        height="0" width="0" style={{ display: 'none', visibility: 'hidden' }}></iframe></noscript>
         {/* End Google Tag Manager (noscript) */}
         {children}
         <Toaster />
