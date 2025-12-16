@@ -30,7 +30,7 @@ export const metadata: Metadata = {
       siteName: "Recur",
       images: [
         {
-          url: "/og-image.png", // Tendrás que crear esta imagen y ponerla en /public
+          url: "/icon-192.png", // Tendrás que crear esta imagen y ponerla en /public
           width: 1200,
           height: 630,
         },
@@ -64,11 +64,15 @@ export default function RootLayout({
     <html lang="es">
       <head>
         {/* Google Tag Manager */}
-        <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-        new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-        j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-        'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-        })(window,document,'script','dataLayer','GTM-WV9923SX');</script>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+            new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+            j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+            'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+            })(window,document,'script','dataLayer','GTM-WV9923SX');`,
+          }}
+        />
         {/* End Google Tag Manager */}
       </head>
       <body className={`${kaio.variable} font-sans antialiased overscroll-none`} suppressHydrationWarning>
