@@ -5,29 +5,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { MonthSelector } from "@/components/month-selector";
-import { 
-  Plus, Wallet, PiggyBank, Target, ArrowUpRight, ArrowDownRight, 
-  Trash2, X, LogOut, ShoppingBag, Pencil, LayoutDashboard
-} from "lucide-react";
+import { Plus, ArrowRight, Pencil, LogOut, X, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
-
-// --- HELPERS DE FECHAS ---
-const toISODateString = (date: Date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
-const getStartOfMonthStr = (date: Date) => {
-  return toISODateString(new Date(date.getFullYear(), date.getMonth(), 1));
-};
-
-const getEndOfMonthStr = (date: Date) => {
-  return toISODateString(new Date(date.getFullYear(), date.getMonth() + 1, 0));
-};
-// -------------------------
 
 // --- TIPOS ---
 type Subscription = {
@@ -39,43 +19,40 @@ type Subscription = {
   active: boolean;
 };
 
-type Expense = {
-  id: string;
-  name: string;
-  amount: number;
-  date: string;
-  category: string;
-  is_recurring?: boolean; 
+const COLORS = ["#0f172a", "#2563eb", "#059669", "#7c3aed", "#db2777", "#ea580c"];
+
+const getNextRenewalDate = (startDateStr: string): Date => {
+  const renewalDay = new Date(startDateStr).getDate();
+  const today = new Date();
+  const thisMonth = new Date(today.getFullYear(), today.getMonth(), renewalDay);
+  if (thisMonth >= today) return thisMonth;
+  return new Date(today.getFullYear(), today.getMonth() + 1, renewalDay);
 };
 
-const COLORS = ["#0f172a", "#2563eb", "#059669", "#7c3aed", "#db2777", "#ea580c"];
+const formatRenewalDate = (date: Date): string => {
+  return new Intl.DateTimeFormat("es-ES", { day: "numeric", month: "long" }).format(date);
+};
+
+const daysUntil = (date: Date): number => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diff = date.getTime() - today.getTime();
+  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+};
 
 export default function Dashboard() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  
-  // ESTADO DE FECHA
   const [currentDate, setCurrentDate] = useState(new Date());
-
-  // Datos
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
-  const [expenses, setExpenses] = useState<Expense[]>([]); 
-  const [income, setIncome] = useState(0); 
-  const [savingsGoal, setSavingsGoal] = useState(0);
 
   // Modales
   const [isSubModalOpen, setIsSubModalOpen] = useState(false);
-  const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
-  const [isIncomeModalOpen, setIsIncomeModalOpen] = useState(false);
-
-  // Formularios
   const [editingId, setEditingId] = useState<string | null>(null);
   const [subForm, setSubForm] = useState({ name: "", price: "", date: "", category: "Entretenimiento" });
-  const [expenseForm, setExpenseForm] = useState({ name: "", amount: "", date: new Date().toISOString().split('T')[0], category: "Ocio" });
-  const [incomeForm, setIncomeForm] = useState({ income: "", savings_goal: "" });
 
-  // 1. CARGA INICIAL
+  // 1. Auth — corre una sola vez
   useEffect(() => {
     const checkUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -84,476 +61,341 @@ export default function Dashboard() {
         return;
       }
       setUser(user);
-      fetchData(user.id, currentDate);
     };
     checkUser();
-  }, [router, currentDate]);
+  }, [router]);
 
-  const fetchData = async (userId: string, date: Date) => {
+  // 2. Fetch de datos — depende del usuario
+  useEffect(() => {
+    if (!user) return;
+    fetchSubscriptions(user.id);
+  }, [user]);
+
+  const fetchSubscriptions = async (userId: string) => {
     setLoading(true);
     try {
-        const startStr = getStartOfMonthStr(date);
-        const endStr = getEndOfMonthStr(date);
-
-        // A. Cargar INGRESOS/AHORRO del mes específico
-        // Primero buscamos si existe un presupuesto específico para ESTE mes
-        const { data: monthBudget } = await supabase
-          .from('monthly_budgets')
-          .select('*')
-          .eq('user_id', userId)
-          .eq('date', startStr) // Buscamos por el día 1 del mes
-          .single();
-
-        if (monthBudget) {
-            // Si existe, usamos los datos de ese mes
-            setIncome(monthBudget.income);
-            setSavingsGoal(monthBudget.savings_goal);
-            setIncomeForm({ income: monthBudget.income.toString(), savings_goal: monthBudget.savings_goal.toString() });
-        } else {
-            // Si NO existe, cargamos el perfil por defecto
-            const { data: profile } = await supabase.from('profiles').select('income, savings_goal').eq('id', userId).single();
-            if (profile) {
-                setIncome(profile.income || 0);
-                setSavingsGoal(profile.savings_goal || 0);
-                setIncomeForm({ income: profile.income?.toString(), savings_goal: profile.savings_goal?.toString() });
-            }
-        }
-
-        // B. Cargar Suscripciones Activas
-        const { data: subs } = await supabase.from('subscriptions').select('*').eq('user_id', userId).eq('active', true).order('price', { ascending: false });
-        if (subs) setSubscriptions(subs as Subscription[]);
-
-        // C. Cargar Gastos (Fijos generados + Variables)
-        const { data: monthExpenses } = await supabase
-            .from('expenses')
-            .select('*')
-            .eq('user_id', userId)
-            .gte('date', startStr)
-            .lte('date', endStr)
-            .order('date', { ascending: false });
-
-        // D. GENERACIÓN PEREZOSA (Si faltan los fijos, los creamos)
-        if ((!monthExpenses || monthExpenses.length === 0) && subs && subs.length > 0) {
-             const newExpenses = subs.map(sub => ({
-                user_id: userId,
-                name: sub.name,
-                amount: sub.price,
-                category: sub.category,
-                date: startStr,
-                is_recurring: true
-             }));
-
-             const { data: inserted } = await supabase.from('expenses').insert(newExpenses).select();
-             if (inserted) setExpenses(inserted as Expense[]);
-        } else {
-             setExpenses(monthExpenses as Expense[] || []);
-        }
-
+      const { data: subs } = await supabase
+        .from("subscriptions")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("active", true)
+        .order("price", { ascending: false });
+      if (subs) setSubscriptions(subs as Subscription[]);
     } catch (error) {
-      console.error("Error cargando datos", error);
+      console.error("Error cargando suscripciones", error);
     } finally {
       setLoading(false);
     }
   };
 
-  // --- ACTIONS ---
-
   const openSubModal = (sub?: Subscription) => {
-      if (sub) {
-          setEditingId(sub.id);
-          setSubForm({ name: sub.name, price: sub.price.toString(), date: sub.start_date, category: sub.category });
-      } else {
-          setEditingId(null);
-          setSubForm({ name: "", price: "", date: "", category: "Entretenimiento" });
-      }
-      setIsSubModalOpen(true);
+    if (sub) {
+      setEditingId(sub.id);
+      setSubForm({ name: sub.name, price: sub.price.toString(), date: sub.start_date, category: sub.category });
+    } else {
+      setEditingId(null);
+      setSubForm({ name: "", price: "", date: "", category: "Entretenimiento" });
+    }
+    setIsSubModalOpen(true);
   };
 
   const handleSaveSubscription = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
     const payload = {
-        user_id: user.id,
-        name: subForm.name,
-        price: parseFloat(subForm.price),
-        start_date: subForm.date,
-        category: subForm.category,
-        currency: 'EUR', frequency: 'monthly', active: true
+      user_id: user.id,
+      name: subForm.name,
+      price: parseFloat(subForm.price),
+      start_date: subForm.date,
+      category: subForm.category,
+      currency: "EUR",
+      frequency: "monthly",
+      active: true,
     };
     try {
-        if (editingId) {
-            await supabase.from('subscriptions').update(payload).eq('id', editingId);
-        } else {
-            await supabase.from('subscriptions').insert([payload]);
-        }
-        fetchData(user.id, currentDate);
-        setIsSubModalOpen(false);
-    } catch (error: any) { alert(error.message); }
+      if (editingId) {
+        await supabase.from("subscriptions").update(payload).eq("id", editingId);
+      } else {
+        await supabase.from("subscriptions").insert([payload]);
+      }
+      fetchSubscriptions(user.id);
+      setIsSubModalOpen(false);
+    } catch (error: any) {
+      alert(error.message);
+    }
   };
 
   const handleDeleteSub = async (id: string) => {
-      if (!confirm("¿Borrar suscripción?")) return;
-      await supabase.from('subscriptions').update({ active: false }).eq('id', id);
-      fetchData(user.id, currentDate);
+    if (!confirm("¿Borrar suscripción?")) return;
+    await supabase.from("subscriptions").update({ active: false }).eq("id", id);
+    fetchSubscriptions(user.id);
   };
 
-  const handleSaveExpense = async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!user) return;
-      try {
-          const { error } = await supabase.from('expenses').insert([{
-              user_id: user.id,
-              name: expenseForm.name,
-              amount: parseFloat(expenseForm.amount),
-              date: expenseForm.date,
-              category: expenseForm.category,
-              is_recurring: false
-          }]);
-          if (error) throw error;
-          fetchData(user.id, currentDate);
-          setIsExpenseModalOpen(false);
-      } catch (error: any) { alert(error.message); }
-  };
+  // --- CÁLCULOS ---
+  const totalMonthly = subscriptions.reduce((acc, sub) => acc + sub.price, 0);
 
-  const handleDeleteExpense = async (id: string) => {
-      if (!confirm("¿Borrar gasto?")) return;
-      await supabase.from('expenses').delete().eq('id', id);
-      fetchData(user.id, currentDate);
-  };
-
-  // NUEVO: ACTUALIZAR PERFIL (Guarda en el MES y en el DEFAULT)
-  const handleUpdateProfile = async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!user) return;
-
-      const newIncome = parseFloat(incomeForm.income);
-      const newGoal = parseFloat(incomeForm.savings_goal);
-      const startStr = getStartOfMonthStr(currentDate);
-
-      try {
-        // 1. Guardar/Actualizar en la tabla de presupuestos MENSUALES (upsert)
-        const { error: budgetError } = await supabase
-            .from('monthly_budgets')
-            .upsert({ 
-                user_id: user.id, 
-                date: startStr, // Clave única compuesta (user + fecha)
-                income: newIncome, 
-                savings_goal: newGoal 
-            }, { onConflict: 'user_id, date' });
-
-        if (budgetError) throw budgetError;
-
-        // 2. Actualizar también el perfil DEFAULT (para que los meses futuros usen este nuevo valor)
-        // Esto es opcional, pero útil: si me suben el sueldo hoy, será mi sueldo el mes que viene.
-        await supabase.from('profiles').update({
-            income: newIncome,
-            savings_goal: newGoal
-        }).eq('id', user.id);
-
-        setIncome(newIncome);
-        setSavingsGoal(newGoal);
-        setIsIncomeModalOpen(false);
-        
-        // Recargar para confirmar
-        fetchData(user.id, currentDate);
-
-      } catch (error: any) {
-        alert("Error al guardar: " + error.message);
-      }
-  };
-
-  // --- CÁLCULOS GLOBALES ---
-  const totalExpenses = expenses.reduce((acc, exp) => acc + exp.amount, 0);
-  
-  const chartData = expenses.reduce((acc: any[], curr) => {
-      const existing = acc.find(i => i.name === curr.category);
-      if (existing) existing.value += curr.amount;
-      else acc.push({ name: curr.category, value: curr.amount });
-      return acc;
+  const chartData = subscriptions.reduce((acc: any[], curr) => {
+    const existing = acc.find((i) => i.name === curr.category);
+    if (existing) existing.value += curr.price;
+    else acc.push({ name: curr.category, value: curr.price });
+    return acc;
   }, []);
 
-  const remaining = income - totalExpenses - savingsGoal;
-  const percentageLeft = income > 0 ? (remaining / income) * 100 : 0;
-  const validPercentage = Math.min(Math.max(percentageLeft, 0), 100);
+  const nextRenewal = subscriptions.reduce<{ sub: Subscription; date: Date } | null>((closest, sub) => {
+    const date = getNextRenewalDate(sub.start_date);
+    if (!closest || date < closest.date) return { sub, date };
+    return closest;
+  }, null);
 
-  let barColor = "bg-emerald-400";
-  let statusMessage = "Vas genial este mes 🚀";
-  if (validPercentage < 20) { barColor = "bg-red-500"; statusMessage = "Presupuesto crítico 🚨"; }
-  else if (validPercentage < 50) { barColor = "bg-yellow-400"; statusMessage = "Controla los gastos 👀"; }
-
-  if (loading) return <div className="flex h-screen items-center justify-center text-slate-400">Cargando Recur...</div>;
+  if (loading) return (
+    <div className="flex h-screen items-center justify-center text-slate-400">Cargando Recur...</div>
+  );
 
   return (
     <div className="min-h-screen bg-slate-50/50 font-sans">
-      
+
       {/* NAVBAR */}
       <nav className="sticky top-0 z-40 w-full border-b border-slate-200 bg-white/80 backdrop-blur-md">
         <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 max-w-7xl">
-            <Link href="/" className="flex items-center gap-2 font-bold text-xl text-slate-900">
-                <div className="h-8 w-8 rounded-lg bg-slate-900 flex items-center justify-center text-white">R.</div>
-                <span>Recur</span>
-            </Link>
-            <div className="flex items-center gap-4">
-                <span className="text-sm text-slate-500 hidden sm:inline-block">{user?.email}</span>
-                <Button variant="ghost" size="sm" onClick={() => supabase.auth.signOut().then(() => router.push('/'))} className="text-red-500 hover:text-red-600 hover:bg-red-50">
-                    <LogOut className="h-4 w-4 mr-2" /> Salir
-                </Button>
-            </div>
+          <Link href="/" className="flex items-center gap-2 font-bold text-xl text-slate-900">
+            <div className="h-8 w-8 rounded-lg bg-slate-900 flex items-center justify-center text-white">R.</div>
+            <span>Recur</span>
+          </Link>
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-slate-500 hidden sm:inline-block">{user?.email}</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => supabase.auth.signOut().then(() => router.push("/"))}
+              className="text-red-500 hover:text-red-600 hover:bg-red-50"
+            >
+              <LogOut className="h-4 w-4 mr-2" /> Salir
+            </Button>
+          </div>
         </div>
       </nav>
 
-      {/* CONTENIDO PRINCIPAL */}
+      {/* CONTENIDO */}
       <div className="p-4 md:p-10 max-w-7xl mx-auto space-y-6 md:space-y-8">
-        
-        {/* HEADER & CONTROLES */}
+
+        {/* HEADER */}
         <div className="flex flex-col gap-6">
-          
-          {/* Título y Texto (Arriba del todo) */}
           <div>
-            <h1 className="text-3xl font-bold text-slate-900">Panel Financiero</h1>
-            <p className="text-slate-500">Resumen de tu salud económica</p>
+            <h1 className="text-3xl font-bold text-slate-900">Mis Suscripciones</h1>
+            <p className="text-slate-500">Gestiona todos tus gastos recurrentes</p>
           </div>
-          
-          {/* BLOQUE DE ACCIONES (Selector Fecha + Botones) */}
+
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              
-              {/* 1. Selector de Mes (Centrado en móvil, izquierda en PC) */}
-              <div className="w-full md:w-auto flex justify-center md:justify-start">
-                  <MonthSelector currentDate={currentDate} onMonthChange={setCurrentDate} />
-              </div>
-              
-              {/* 2. BOTONES DE ACCIÓN (Scroll Horizontal en Móvil) */}
-              {/* El truco: -mx-4 px-4 permite que el scroll llegue hasta el borde de la pantalla */}
-              <div className="flex items-center gap-3 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:pb-0 scrollbar-hide mask-fade-right">
-                 
-                 {/* Botón Ingresos (Shrink-0 evita que se aplaste) */}
-                 <Button variant="outline" onClick={() => setIsIncomeModalOpen(true)} className="bg-white whitespace-nowrap shrink-0 border-slate-200 text-slate-700 shadow-sm">
-                    <Target className="mr-2 h-4 w-4 text-emerald-600" /> Ajustar Ingresos
-                 </Button>
-
-                 {/* Botón Suscripción (Principal) */}
-                 <Button onClick={() => openSubModal()} className="bg-slate-900 text-white whitespace-nowrap shrink-0 shadow-md shadow-slate-900/20">
-                    <Plus className="mr-2 h-4 w-4" /> Suscripción
-                 </Button>
-
-                 {/* Botón Analíticas */}
-                 <Link href="/analytics">
-                    <Button variant="outline" className="bg-white text-slate-600 border-slate-200 hover:bg-slate-50 whitespace-nowrap shrink-0 shadow-sm">
-                       {/* Icono diferente para variar visualmente */}
-                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><path d="m9 16 2 2 4-4"/></svg> 
-                       Analíticas
-                    </Button>
-                 </Link>
-              </div>
+            <div className="w-full md:w-auto flex justify-center md:justify-start">
+              <MonthSelector currentDate={currentDate} onMonthChange={setCurrentDate} />
+            </div>
+            <div className="flex items-center gap-3 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:pb-0">
+              <Button onClick={() => openSubModal()} className="bg-slate-900 text-white whitespace-nowrap shrink-0 shadow-md shadow-slate-900/20">
+                <Plus className="mr-2 h-4 w-4" /> Suscripción
+              </Button>
+              <Link href="/analytics">
+                <Button variant="outline" className="bg-white text-slate-600 border-slate-200 hover:bg-slate-50 whitespace-nowrap shrink-0 shadow-sm">
+                  <ArrowRight className="mr-2 h-4 w-4" /> Analíticas
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
 
-        {/* TARJETAS KPI */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-                <div className="flex justify-between mb-4"><div className="bg-emerald-100 p-2 rounded-lg text-emerald-600"><ArrowUpRight className="h-5 w-5" /></div></div>
-                <p className="text-slate-500 text-sm font-medium">Ingresos {new Intl.DateTimeFormat('es-ES', { month: 'long' }).format(currentDate)}</p>
-                <h3 className="text-2xl font-black text-slate-900">{income}€</h3>
+        {/* KPIs */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+          {/* Total mensual */}
+          <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl text-white relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-32 rounded-full bg-blue-500 mix-blend-overlay filter blur-3xl opacity-20 -translate-y-1/2 translate-x-1/2"></div>
+            <div className="relative z-10">
+              <p className="text-slate-400 text-sm font-medium mb-2">Total mensual</p>
+              <h3 className="text-4xl font-black tracking-tight tabular-nums font-mono">
+                {totalMonthly.toFixed(2)}€
+              </h3>
+              <p className="text-slate-400 text-xs mt-2">{(totalMonthly * 12).toFixed(0)}€ al año</p>
             </div>
-            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-                <div className="flex justify-between mb-4"><div className="bg-red-100 p-2 rounded-lg text-red-600"><ArrowDownRight className="h-5 w-5" /></div></div>
-                <p className="text-slate-500 text-sm font-medium">Total Gastos</p>
-                <h3 className="text-2xl font-black text-slate-900">{totalExpenses.toFixed(2)}€</h3>
+          </div>
+
+          {/* Próxima renovación */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="bg-amber-100 p-2 rounded-lg text-amber-600">
+                <Bell className="h-4 w-4" />
+              </div>
+              <p className="text-slate-500 text-sm font-medium">Próxima renovación</p>
             </div>
-             <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-                <div className="flex justify-between mb-4"><div className="bg-blue-100 p-2 rounded-lg text-blue-600"><PiggyBank className="h-5 w-5" /></div></div>
-                <p className="text-slate-500 text-sm font-medium">Meta Ahorro</p>
-                <h3 className="text-2xl font-black text-slate-900">{savingsGoal}€</h3>
-            </div>
-            
-            <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl text-white relative overflow-hidden group">
-                <div className={`absolute top-0 right-0 p-32 rounded-full mix-blend-overlay filter blur-3xl opacity-20 -translate-y-1/2 translate-x-1/2 transition-colors duration-500 ${validPercentage < 20 ? 'bg-red-500' : 'bg-blue-500'}`}></div>
-                <div className="relative z-10">
-                    <div className="flex justify-between mb-4">
-                        <div className="bg-white/10 p-2 rounded-lg"><Wallet className="h-5 w-5" /></div>
-                        <span className={`text-xs font-bold px-2 py-1 rounded-full ${validPercentage < 20 ? 'bg-red-500/20 text-red-300' : 'bg-emerald-500/20 text-emerald-300'}`}>
-                            {validPercentage.toFixed(0)}% restante
-                        </span>
-                    </div>
-                    <p className="text-slate-400 text-sm font-medium">Libre para gastar</p>
-                    <h3 className="text-3xl font-black tracking-tight mt-1">{remaining.toFixed(2)}€</h3>
-                    <div className="mt-5 space-y-2">
-                        <div className="w-full bg-slate-700 h-2 rounded-full overflow-hidden">
-                            <div className={`h-full rounded-full transition-all duration-1000 ease-out ${barColor}`} style={{ width: `${validPercentage}%` }}></div>
-                        </div>
-                        <p className="text-xs text-slate-400 font-medium text-right">{statusMessage}</p>
-                    </div>
+            {nextRenewal ? (
+              <>
+                <h3 className="text-xl font-bold text-slate-900">{nextRenewal.sub.name}</h3>
+                <p className="text-slate-500 text-sm mt-1">{formatRenewalDate(nextRenewal.date)}</p>
+                <div className="flex items-center justify-between mt-3">
+                  <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-full">
+                    en {daysUntil(nextRenewal.date)} días
+                  </span>
+                  <span className="font-bold text-slate-900 font-mono">{nextRenewal.sub.price.toFixed(2)}€</span>
                 </div>
-            </div>
+              </>
+            ) : (
+              <p className="text-slate-400 text-sm">Sin suscripciones activas</p>
+            )}
+          </div>
+
+          {/* Suscripciones activas */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+            <p className="text-slate-500 text-sm font-medium mb-2">Suscripciones activas</p>
+            <h3 className="text-4xl font-black text-slate-900">{subscriptions.length}</h3>
+            {subscriptions.length > 0 && (
+              <p className="text-slate-400 text-xs mt-2">
+                Media: {(totalMonthly / subscriptions.length).toFixed(2)}€/suscripción
+              </p>
+            )}
+          </div>
         </div>
 
+        {/* GRÁFICO + LISTA */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            
-            {/* GRÁFICO */}
-            <div className="md:col-span-1 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col items-center justify-center">
-                <h4 className="font-bold text-slate-800 w-full mb-4">Desglose del Mes</h4>
-                {expenses.length > 0 ? (
-                    <div className="h-64 w-full relative">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie data={chartData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
-                                    {chartData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
-                                </Pie>
-                                <RechartsTooltip />
-                            </PieChart>
-                        </ResponsiveContainer>
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
-                            <span className="text-2xl font-bold text-slate-900">{totalExpenses.toFixed(0)}€</span>
-                        </div>
-                    </div>
-                ) : ( <p className="text-slate-400">Sin gastos este mes</p> )}
-            </div>
 
-            {/* LISTA SUSCRIPCIONES */}
-            <div className="md:col-span-2 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col">
-                <div className="flex justify-between items-center mb-6">
-                    <h4 className="font-bold text-slate-800">Tus Suscripciones Activas</h4>
-                    <span className="text-xs text-slate-400">Estas se copian automáticamente cada mes</span>
+          {/* Desglose por categoría */}
+          <div className="md:col-span-1 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col items-center justify-center">
+            <h4 className="font-bold text-slate-800 w-full mb-4">Desglose por categoría</h4>
+            {subscriptions.length > 0 ? (
+              <div className="h-64 w-full relative">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={chartData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                      {chartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <RechartsTooltip
+                      formatter={(value: number) => `${value.toFixed(2)}€`}
+                      contentStyle={{ borderRadius: "8px", border: "1px solid #e2e8f0" }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
+                  <span className="text-2xl font-bold text-slate-900 font-mono">{totalMonthly.toFixed(0)}€</span>
                 </div>
-                <div className="space-y-3 flex-1 overflow-auto max-h-[300px]">
-                    {subscriptions.map((sub) => (
-                        <div key={sub.id} onClick={() => openSubModal(sub)} className="cursor-pointer flex items-center justify-between p-4 bg-slate-50 hover:bg-white border border-transparent hover:border-blue-200 hover:shadow-md rounded-2xl transition-all group">
-                            <div className="flex items-center gap-4">
-                                <div className="h-10 w-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-900 font-bold">{sub.name.charAt(0).toUpperCase()}</div>
-                                <div>
-                                    <p className="font-bold text-slate-900">{sub.name}</p>
-                                    <p className="text-xs text-slate-500">{sub.category}</p>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-4">
-                                <p className="font-bold text-slate-900">-{sub.price}€</p>
-                                <Pencil className="h-4 w-4 text-slate-300 group-hover:text-blue-500" />
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        </div>
+              </div>
+            ) : (
+              <p className="text-slate-400">Sin suscripciones</p>
+            )}
+          </div>
 
-        {/* TABLA MOVIMIENTOS */}
-        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+          {/* Lista de suscripciones */}
+          <div className="md:col-span-2 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col">
             <div className="flex justify-between items-center mb-6">
-                <div className="flex items-center gap-2">
-                    <div className="bg-orange-100 p-2 rounded-lg text-orange-600"><ShoppingBag className="h-5 w-5" /></div>
-                    <h4 className="font-bold text-slate-800">Movimientos de {new Intl.DateTimeFormat('es-ES', { month: 'long' }).format(currentDate)}</h4>
-                </div>
-                <Button variant="ghost" size="sm" onClick={() => setIsExpenseModalOpen(true)} className="text-blue-600 hover:bg-blue-50">
-                    + Añadir Gasto
-                </Button>
+              <h4 className="font-bold text-slate-800">Suscripciones activas</h4>
+              <span className="text-xs text-slate-400">Toca para editar</span>
             </div>
-            
-            <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                    <thead className="text-xs text-slate-400 uppercase bg-slate-50/50">
-                        <tr>
-                            <th className="px-4 py-3">Concepto</th>
-                            <th className="px-4 py-3">Fecha</th>
-                            <th className="px-4 py-3">Categoría</th>
-                            <th className="px-4 py-3 text-right">Importe</th>
-                            <th className="px-4 py-3 text-right">Acción</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {expenses.length === 0 && <tr><td colSpan={5} className="text-center py-4 text-slate-400">Todo limpio este mes ✨</td></tr>}
-                        {expenses.map((exp) => (
-                            <tr key={exp.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
-                                <td className="px-4 py-3 font-medium text-slate-900 flex items-center gap-2">
-                                    {exp.is_recurring && <span className="text-[10px] bg-blue-100 text-blue-600 px-1 rounded">FIJO</span>}
-                                    {exp.name}
-                                </td>
-                                <td className="px-4 py-3 text-slate-500">{exp.date}</td>
-                                <td className="px-4 py-3"><span className="px-2 py-1 rounded-full bg-slate-100 text-xs text-slate-600">{exp.category}</span></td>
-                                <td className="px-4 py-3 text-right font-bold text-slate-900">-{exp.amount}€</td>
-                                <td className="px-4 py-3 text-right">
-                                    <button onClick={() => handleDeleteExpense(exp.id)} className="text-slate-300 hover:text-red-500 transition-colors"><Trash2 className="h-4 w-4"/></button>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-        </div>
 
+            {subscriptions.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-center py-10 gap-4">
+                <p className="text-slate-400">Todavía no tienes suscripciones</p>
+                <Button onClick={() => openSubModal()} size="sm" className="bg-slate-900 text-white">
+                  <Plus className="mr-2 h-4 w-4" /> Añadir primera suscripción
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3 flex-1 overflow-auto max-h-[360px]">
+                {subscriptions.map((sub) => {
+                  const renewalDate = getNextRenewalDate(sub.start_date);
+                  const days = daysUntil(renewalDate);
+                  return (
+                    <div
+                      key={sub.id}
+                      onClick={() => openSubModal(sub)}
+                      className="cursor-pointer flex items-center justify-between p-4 bg-slate-50 hover:bg-white border border-transparent hover:border-blue-200 hover:shadow-md rounded-2xl transition-all group"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="h-10 w-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-900 font-bold">
+                          {sub.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-900">{sub.name}</p>
+                          <p className="text-xs text-slate-500">
+                            {sub.category} · renueva en {days} días
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <p className="font-bold text-slate-900 font-mono">-{sub.price.toFixed(2)}€</p>
+                        <Pencil className="h-4 w-4 text-slate-300 group-hover:text-blue-500" />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* --- MODAL: SUSCRIPCIONES --- */}
+      {/* MODAL: SUSCRIPCIÓN */}
       {isSubModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-           <div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl">
-               <div className="flex justify-between mb-4">
-                   <h3 className="font-bold text-lg">{editingId ? "Editar Suscripción" : "Nueva Suscripción"}</h3>
-                   <button onClick={() => setIsSubModalOpen(false)}><X className="h-5 w-5 text-slate-400"/></button>
-               </div>
-               <form onSubmit={handleSaveSubscription} className="space-y-4">
-                   <input required placeholder="Nombre (ej: Netflix)" value={subForm.name} onChange={e => setSubForm({...subForm, name: e.target.value})} className="w-full p-2 border rounded-lg"/>
-                   <div className="flex gap-4">
-                       <input required type="number" step="0.01" placeholder="Precio" value={subForm.price} onChange={e => setSubForm({...subForm, price: e.target.value})} className="w-full p-2 border rounded-lg"/>
-                       <input required type="date" value={subForm.date} onChange={e => setSubForm({...subForm, date: e.target.value})} className="w-full p-2 border rounded-lg"/>
-                   </div>
-                   <select value={subForm.category} onChange={e => setSubForm({...subForm, category: e.target.value})} className="w-full p-2 border rounded-lg bg-white">
-                       {["Entretenimiento", "Música", "Software", "Hogar", "Seguros", "Otros"].map(c => <option key={c}>{c}</option>)}
-                   </select>
-                   <div className="flex gap-2 pt-2">
-                       {editingId && <Button type="button" variant="destructive" onClick={() => {handleDeleteSub(editingId); setIsSubModalOpen(false)}} className="flex-1">Borrar</Button>}
-                       <Button type="submit" className="flex-[2] bg-slate-900 text-white">Guardar</Button>
-                   </div>
-               </form>
-           </div>
+          <div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl">
+            <div className="flex justify-between mb-4">
+              <h3 className="font-bold text-lg">{editingId ? "Editar Suscripción" : "Nueva Suscripción"}</h3>
+              <button onClick={() => setIsSubModalOpen(false)}>
+                <X className="h-5 w-5 text-slate-400" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveSubscription} className="space-y-4">
+              <input
+                required
+                placeholder="Nombre (ej: Netflix)"
+                value={subForm.name}
+                onChange={(e) => setSubForm({ ...subForm, name: e.target.value })}
+                className="w-full p-2 border rounded-lg"
+              />
+              <div className="flex gap-4">
+                <input
+                  required
+                  type="number"
+                  step="0.01"
+                  placeholder="Precio"
+                  value={subForm.price}
+                  onChange={(e) => setSubForm({ ...subForm, price: e.target.value })}
+                  className="w-full p-2 border rounded-lg"
+                />
+                <input
+                  required
+                  type="date"
+                  value={subForm.date}
+                  onChange={(e) => setSubForm({ ...subForm, date: e.target.value })}
+                  className="w-full p-2 border rounded-lg"
+                />
+              </div>
+              <select
+                value={subForm.category}
+                onChange={(e) => setSubForm({ ...subForm, category: e.target.value })}
+                className="w-full p-2 border rounded-lg bg-white"
+              >
+                {["Entretenimiento", "Música", "Software", "Hogar", "Seguros", "Otros"].map((c) => (
+                  <option key={c}>{c}</option>
+                ))}
+              </select>
+              <div className="flex gap-2 pt-2">
+                {editingId && (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={() => { handleDeleteSub(editingId); setIsSubModalOpen(false); }}
+                    className="flex-1"
+                  >
+                    Borrar
+                  </Button>
+                )}
+                <Button type="submit" className="flex-[2] bg-slate-900 text-white">
+                  Guardar
+                </Button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
-
-      {/* --- MODAL: INGRESOS --- */}
-      {isIncomeModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-           <div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl">
-               <div className="flex justify-between mb-4">
-                   <h3 className="font-bold text-lg">Ajustar Perfil ({new Intl.DateTimeFormat('es-ES', { month: 'long' }).format(currentDate)})</h3>
-                   <button onClick={() => setIsIncomeModalOpen(false)}><X className="h-5 w-5 text-slate-400"/></button>
-               </div>
-               <form onSubmit={handleUpdateProfile} className="space-y-4">
-                   <div>
-                       <label className="text-sm font-medium text-slate-700">Ingresos Mensuales (€)</label>
-                       <input required type="number" value={incomeForm.income} onChange={e => setIncomeForm({...incomeForm, income: e.target.value})} className="w-full p-2 border rounded-lg mt-1"/>
-                       <p className="text-xs text-slate-400 mt-1">Este cambio se aplicará a este mes y futuros.</p>
-                   </div>
-                   <div>
-                       <label className="text-sm font-medium text-slate-700">Objetivo de Ahorro (€)</label>
-                       <input required type="number" value={incomeForm.savings_goal} onChange={e => setIncomeForm({...incomeForm, savings_goal: e.target.value})} className="w-full p-2 border rounded-lg mt-1"/>
-                   </div>
-                   <Button type="submit" className="w-full bg-slate-900 text-white mt-4">Actualizar Perfil</Button>
-               </form>
-           </div>
-        </div>
-      )}
-
-      {/* --- MODAL: GASTOS VARIABLES --- */}
-      {isExpenseModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-           <div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl">
-               <div className="flex justify-between mb-4">
-                   <h3 className="font-bold text-lg">Añadir Gasto Puntual</h3>
-                   <button onClick={() => setIsExpenseModalOpen(false)}><X className="h-5 w-5 text-slate-400"/></button>
-               </div>
-               <form onSubmit={handleSaveExpense} className="space-y-4">
-                   <input required placeholder="Concepto (ej: Cena VIPS)" value={expenseForm.name} onChange={e => setExpenseForm({...expenseForm, name: e.target.value})} className="w-full p-2 border rounded-lg"/>
-                   <div className="flex gap-4">
-                       <input required type="number" step="0.01" placeholder="Importe" value={expenseForm.amount} onChange={e => setExpenseForm({...expenseForm, amount: e.target.value})} className="w-full p-2 border rounded-lg"/>
-                       <input required type="date" value={expenseForm.date} onChange={e => setExpenseForm({...expenseForm, date: e.target.value})} className="w-full p-2 border rounded-lg"/>
-                   </div>
-                   <select value={expenseForm.category} onChange={e => setExpenseForm({...expenseForm, category: e.target.value})} className="w-full p-2 border rounded-lg bg-white">
-                       {["Comida", "Transporte", "Ropa", "Ocio", "Salud", "Regalos", "Otros"].map(c => <option key={c}>{c}</option>)}
-                   </select>
-                   <Button type="submit" className="w-full bg-slate-900 text-white mt-4">Añadir Gasto</Button>
-               </form>
-           </div>
-        </div>
-      )}
-
     </div>
   );
 }

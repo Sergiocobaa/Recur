@@ -1,36 +1,26 @@
-import type { Metadata, Viewport } from "next"; // Importamos Viewport
-import localFont from "next/font/local";
+import type { Metadata, Viewport } from "next";
+import { GeistSans } from "geist/font/sans";
+import { GeistMono } from "geist/font/mono";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 
-// Tus fuentes (No tocamos nada)
-const kaio = localFont({
-  src: [
-    { path: './fonts/KaioTRIAL-Regular-BF65f24de206d9d.otf', weight: '400', style: 'normal' },
-    { path: './fonts/KaioTRIAL-Medium-BF65f24de1b8279.otf', weight: '500', style: 'normal' },
-    { path: './fonts/KaioTRIAL-Bold-BF65f24de19552f.otf', weight: '700', style: 'normal' },
-  ],
-  variable: '--font-kaio',
-});
-
-// 1. METADATOS: Aquí vinculamos el manifest
 export const metadata: Metadata = {
     title: {
-      default: "Recur | Gestor de Suscripciones y Gastos Fijos",
+      default: "Recur | Gestor de Suscripciones",
       template: "%s | Recur"
     },
-    description: "Deja de perder dinero en suscripciones olvidadas. Controla tus gastos fijos, detecta cobros ocultos y optimiza tu ahorro mensual con Recur.",
-    keywords: ["gestor de suscripciones", "control de gastos", "finanzas personales", "ahorro mensual", "rastreador de gastos", "app finanzas"],
-    authors: [{ name: "Sergio Coba" }], // Opcional
+    description: "Deja de perder dinero en suscripciones olvidadas. Controla todos tus gastos recurrentes, detecta cobros ocultos y recibe avisos antes de cada renovación.",
+    keywords: ["gestor de suscripciones", "control de suscripciones", "finanzas personales", "rastreador de suscripciones", "app suscripciones"],
+    authors: [{ name: "Sergio Coba" }],
     creator: "Recur App",
     openGraph: {
-      title: "Recur - Tu dinero, bajo control",
-      description: "La forma más simple de gestionar tus suscripciones a Netflix, Spotify y gastos fijos.",
+      title: "Recur - Tus suscripciones, bajo control",
+      description: "La forma más simple de gestionar tus suscripciones a Netflix, Spotify y cualquier servicio recurrente.",
       url: "https://recur.es",
       siteName: "Recur",
       images: [
         {
-          url: "/icon-192.png", // Tendrás que crear esta imagen y ponerla en /public
+          url: "/icon-192.png",
           width: 1200,
           height: 630,
         },
@@ -41,18 +31,17 @@ export const metadata: Metadata = {
     twitter: {
       card: "summary_large_image",
       title: "Recur | Control total de tus suscripciones",
-      description: "Deja de tirar dinero. Gestiona todos tus gastos fijos en un solo lugar.",
-      // images: ["/og-image.png"],
+      description: "Deja de tirar dinero. Gestiona todos tus gastos recurrentes en un solo lugar.",
     },
-    metadataBase: new URL("https://recur.es"), // IMPORTANTE: Cambia esto por tu dominio real (o localhost para probar)
+    metadataBase: new URL("https://recur.es"),
   };
-// 2. VIEWPORT: Para que parezca una app (sin zoom)
+
 export const viewport: Viewport = {
   themeColor: "#0f172a",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  userScalable: false, 
+  userScalable: false,
 };
 
 export default function RootLayout({
@@ -75,7 +64,7 @@ export default function RootLayout({
         />
         {/* End Google Tag Manager */}
       </head>
-      <body className={`${kaio.variable} font-sans antialiased overscroll-none`} suppressHydrationWarning>
+      <body className={`${GeistSans.variable} ${GeistMono.variable} font-sans antialiased overscroll-none`} suppressHydrationWarning>
         {/* Google Tag Manager (noscript) */}
         <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-WV9923SX"
         height="0" width="0" style={{ display: 'none', visibility: 'hidden' }}></iframe></noscript>
