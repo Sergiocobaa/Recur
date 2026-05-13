@@ -5,8 +5,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { MonthSelector } from "@/components/month-selector";
-import { Plus, ArrowRight, Pencil, LogOut, X, Bell } from "lucide-react";
+import { toast } from "sonner";
+import { Plus, Pencil, LogOut, X, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
 
@@ -45,7 +45,6 @@ export default function Dashboard() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [currentDate, setCurrentDate] = useState(new Date());
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
 
   // Modales
@@ -53,11 +52,15 @@ export default function Dashboard() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [subForm, setSubForm] = useState({ name: "", price: "", date: "", category: "Entretenimiento" });
 
+  // Confirmación de borrado
+  const [subToDelete, setSubToDelete] = useState<string | null>(null);
+
   // 1. Auth — corre una sola vez
   useEffect(() => {
     const checkUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
+        setLoading(false);
         router.push("/login");
         return;
       }
@@ -116,20 +119,30 @@ export default function Dashboard() {
     try {
       if (editingId) {
         await supabase.from("subscriptions").update(payload).eq("id", editingId);
+        toast.success("Suscripción actualizada");
       } else {
         await supabase.from("subscriptions").insert([payload]);
+        toast.success("Suscripción añadida");
       }
       fetchSubscriptions(user.id);
       setIsSubModalOpen(false);
     } catch (error: any) {
-      alert(error.message);
+      toast.error("Error al guardar", { description: error.message });
     }
   };
 
-  const handleDeleteSub = async (id: string) => {
-    if (!confirm("¿Borrar suscripción?")) return;
-    await supabase.from("subscriptions").update({ active: false }).eq("id", id);
-    fetchSubscriptions(user.id);
+  const handleDeleteSub = async () => {
+    if (!subToDelete) return;
+    try {
+      await supabase.from("subscriptions").update({ active: false }).eq("id", subToDelete);
+      toast.success("Suscripción eliminada");
+      fetchSubscriptions(user.id);
+    } catch (error: any) {
+      toast.error("Error al eliminar", { description: error.message });
+    } finally {
+      setSubToDelete(null);
+      setIsSubModalOpen(false);
+    }
   };
 
   // --- CÁLCULOS ---
@@ -180,27 +193,14 @@ export default function Dashboard() {
       <div className="p-4 md:p-10 max-w-7xl mx-auto space-y-6 md:space-y-8">
 
         {/* HEADER */}
-        <div className="flex flex-col gap-6">
+        <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-slate-900">Mis Suscripciones</h1>
             <p className="text-slate-500">Gestiona todos tus gastos recurrentes</p>
           </div>
-
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="w-full md:w-auto flex justify-center md:justify-start">
-              <MonthSelector currentDate={currentDate} onMonthChange={setCurrentDate} />
-            </div>
-            <div className="flex items-center gap-3 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:pb-0">
-              <Button onClick={() => openSubModal()} className="bg-slate-900 text-white whitespace-nowrap shrink-0 shadow-md shadow-slate-900/20">
-                <Plus className="mr-2 h-4 w-4" /> Suscripción
-              </Button>
-              <Link href="/analytics">
-                <Button variant="outline" className="bg-white text-slate-600 border-slate-200 hover:bg-slate-50 whitespace-nowrap shrink-0 shadow-sm">
-                  <ArrowRight className="mr-2 h-4 w-4" /> Analíticas
-                </Button>
-              </Link>
-            </div>
-          </div>
+          <Button onClick={() => openSubModal()} className="bg-slate-900 text-white shadow-md shadow-slate-900/20">
+            <Plus className="mr-2 h-4 w-4" /> Suscripción
+          </Button>
         </div>
 
         {/* KPIs */}
@@ -383,7 +383,7 @@ export default function Dashboard() {
                   <Button
                     type="button"
                     variant="destructive"
-                    onClick={() => { handleDeleteSub(editingId); setIsSubModalOpen(false); }}
+                    onClick={() => setSubToDelete(editingId)}
                     className="flex-1"
                   >
                     Borrar
@@ -394,6 +394,32 @@ export default function Dashboard() {
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* DIALOG: CONFIRMAR BORRADO */}
+      {subToDelete && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl">
+            <h3 className="font-bold text-lg mb-1">¿Borrar suscripción?</h3>
+            <p className="text-slate-500 text-sm mb-6">Esta acción no se puede deshacer.</p>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setSubToDelete(null)}
+                className="flex-1"
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDeleteSub}
+                className="flex-1"
+              >
+                Borrar
+              </Button>
+            </div>
           </div>
         </div>
       )}

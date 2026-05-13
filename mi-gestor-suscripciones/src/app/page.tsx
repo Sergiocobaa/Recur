@@ -115,11 +115,18 @@ export default function LandingPage() {
             <p className="text-sm font-bold text-slate-400 mb-12 uppercase tracking-widest">
               Gestiona cualquier suscripción recurrente
             </p>
+            {/*
+              LOGOS: descarga estos 4 archivos y colócalos en /public/logos/
+              - netflix.png      → https://images.icon-icons.com/2699/PNG/512/netflix_logo_icon_170919.png
+              - amazon-prime.png → https://img.icons8.com/color/600/amazon-prime.png
+              - chatgpt.png      → https://cdn.iconscout.com/icon/free/png-256/free-chatgpt-icon-svg-download-png-7576880.png
+              - adobe.png        → https://cdn-icons-png.flaticon.com/512/732/732171.png
+            */}
             <div className="flex flex-wrap items-center justify-center gap-12 md:gap-24 grayscale opacity-60 hover:grayscale-0 hover:opacity-100 transition-all duration-500">
-              <img src="https://images.icon-icons.com/2699/PNG/512/netflix_logo_icon_170919.png" alt="Netflix" width="64" height="64" className="h-12 md:h-16 w-auto object-contain hover:scale-110 transition-transform duration-300" loading="lazy" />
-              <img src="https://img.icons8.com/color/600/amazon-prime.png" alt="Amazon Prime" width="64" height="64" className="h-12 md:h-16 w-auto object-contain hover:scale-110 transition-transform duration-300" loading="lazy" />
-              <img src="https://cdn.iconscout.com/icon/free/png-256/free-chatgpt-icon-svg-download-png-7576880.png?f=webp" alt="ChatGPT" width="64" height="64" className="h-12 md:h-16 w-auto object-contain hover:scale-110 transition-transform duration-300" loading="lazy" />
-              <img src="https://cdn-icons-png.flaticon.com/512/732/732171.png" alt="Adobe" width="64" height="64" className="h-12 md:h-16 w-auto object-contain hover:scale-110 transition-transform duration-300" loading="lazy" />
+              <Image src="/logos/netflix.png" alt="Netflix" width={64} height={64} className="h-12 md:h-16 w-auto object-contain hover:scale-110 transition-transform duration-300" />
+              <Image src="/logos/amazon-prime.png" alt="Amazon Prime" width={64} height={64} className="h-12 md:h-16 w-auto object-contain hover:scale-110 transition-transform duration-300" />
+              <Image src="/logos/chatgpt.png" alt="ChatGPT" width={64} height={64} className="h-12 md:h-16 w-auto object-contain hover:scale-110 transition-transform duration-300" />
+              <Image src="/logos/adobe.png" alt="Adobe" width={64} height={64} className="h-12 md:h-16 w-auto object-contain hover:scale-110 transition-transform duration-300" />
             </div>
           </div>
         </section>

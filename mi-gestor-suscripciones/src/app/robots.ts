@@ -5,7 +5,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: '*',
       allow: '/',
-      disallow: ['/dashboard/', '/analytics/'], // Le decimos a Google que no intente indexar lo privado
+      disallow: ['/dashboard/'],
     },
     sitemap: 'https://recur.es/sitemap.xml', // TU DOMINIO
   };
