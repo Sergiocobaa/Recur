@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
@@ -73,7 +74,7 @@ export default function LoginPage() {
             <div className="w-full max-w-md p-6 sm:p-8 bg-white border border-slate-200 rounded-2xl shadow-xl shadow-slate-200/50 backdrop-blur-sm">
 
                 <div className="text-center mb-6">
-                    <div className="inline-flex items-center justify-center h-10 w-10 sm:h-12 sm:w-12 rounded-xl bg-slate-900 text-white font-bold text-lg sm:text-xl mb-4">R.</div>
+                    <Image src="/icon-192.png" alt="Recur" width={48} height={48} className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl mb-4 mx-auto" />
                     <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
                         {isSignUp ? "Crea tu cuenta" : "Bienvenido de nuevo"}
                     </h1>

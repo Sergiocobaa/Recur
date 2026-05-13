@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -158,7 +159,7 @@ export default function Dashboard() {
       <nav className="sticky top-0 z-40 w-full border-b border-slate-200 bg-white/80 backdrop-blur-md">
         <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 max-w-7xl">
           <Link href="/" className="flex items-center gap-2 font-bold text-xl text-slate-900">
-            <div className="h-8 w-8 rounded-lg bg-slate-900 flex items-center justify-center text-white">R.</div>
+            <Image src="/icon-192.png" alt="Recur" width={32} height={32} className="h-8 w-8 rounded-lg" />
             <span>Recur</span>
           </Link>
           <div className="flex items-center gap-4">

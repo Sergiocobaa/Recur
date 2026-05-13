@@ -1,3 +1,4 @@
+import Image from "next/image"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { ArrowRight, CheckCircle2, Bell, Search, Lock } from "lucide-react"
@@ -59,7 +60,7 @@ export default function LandingPage() {
       <nav className="sticky top-0 z-50 w-full border-b border-slate-200/60 bg-white/80 backdrop-blur-md">
         <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 max-w-7xl">
           <Link href="/" className="flex items-center gap-2 font-bold text-xl tracking-tight text-slate-900 hover:opacity-80 transition-opacity" aria-label="Recur Inicio">
-            <div className="h-8 w-8 rounded-lg bg-slate-900 flex items-center justify-center text-white">R.</div>
+            <Image src="/icon-192.png" alt="Recur" width={32} height={32} className="h-8 w-8 rounded-lg" />
             <span className="hidden sm:inline-block">Recur</span>
           </Link>
           <LandingNavbarActions />
@@ -184,7 +185,7 @@ export default function LandingPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-10 mb-12">
               <div className="col-span-2 md:col-span-1">
                 <Link href="/" className="flex items-center gap-2 font-bold text-xl text-white mb-4">
-                  <div className="h-8 w-8 rounded-lg bg-white flex items-center justify-center text-slate-900">R.</div>
+                  <Image src="/icon-192.png" alt="Recur" width={32} height={32} className="h-8 w-8 rounded-lg" />
                   Recur
                 </Link>
                 <p className="text-sm leading-relaxed mb-6">
